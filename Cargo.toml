@@ -1,0 +1,13 @@
+[package]
+name = "dfa-runner"
+version = "0.1.0"
+authors = ["Joe Neeman <joeneeman@gmail.com>"]
+
+[dependencies]
+aho-corasick = "0.4"
+memchr = "0.1.6"
+memmem = "0.1.0"
+
+[dev-dependencies]
+matches = "0.1"
+
