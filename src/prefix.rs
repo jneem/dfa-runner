@@ -10,16 +10,47 @@ use aho_corasick::{Automaton, AcAutomaton, FullAcAutomaton, MatchesOverlapping};
 use memchr::memchr;
 use memmem::{Searcher, TwoWaySearcher};
 
+/// A `Prefix` is the first part of a DFA. Anything matching the DFA should start with
+/// something matching the `Prefix`.
+///
+/// The purpose of a `Prefix` is that scanning through the input looking for the `Prefix` should be
+/// much faster than running the DFA naively.
 #[derive(Clone, Debug)]
 pub enum Prefix {
+    // Matches every position.
     Empty,
+    // Matches a single byte in a particular set.
     ByteSet(Vec<bool>),
+    // Matches one specific byte.
     Byte(u8),
+    // Matches a specific sequence of bytes.
     Lit(Vec<u8>),
+    // Matches one of several sequences of bytes. The sequences are contained in the
+    // `FullAcAutomaton`. The `Vec<usize>` tells us which state the DFA should start in after
+    // matching each sequence. That is, `vec[i] == s` if after finding sequence `i` we should
+    // start in state `s`.
     Ac(FullAcAutomaton<Vec<u8>>, Vec<usize>),
+    // Matches a maximal (but possibly non-empty) sequence of bytes each of which belong to a
+    // particular set of bytes.
+    //
+    // The interesting thing about this prefix is that it will only look for non-overlapping
+    // matches (whereas most prefixes look for overlapping matches). This is intended for use when
+    // the first state of a DFA contains self-transitions. In that case, if there's a sequence of
+    // bytes that keeps us in the first state then there's no point in trying to start in the
+    // middle of that sequence of bytes: even if that would give a match, we would get an earlier
+    // match from starting at the beginning of the sequence.
     LoopWhile(Vec<bool>),
 }
 
+/// The result of scanning through the input for a `Prefix`.
+///
+/// The semi-open interval `[start_pos, end_pos)` is the part of the interval that was consumed by
+/// the `Prefix`. The state `end_state` is the DFA state at which we should start to continue
+/// matching; that is, the DFA should begin at position `end_pos` in state `end_state`.
+///
+/// Note that some `Prefix`es return empty intervals (`start_pos == end_pos`). This doesn't mean
+/// necessarily that the `Prefix` didn't match any input, only that it's simpler (and fast) just
+/// to have the DFA re-match from the beginning.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PrefixResult {
     pub start_pos: usize,
@@ -27,12 +58,20 @@ pub struct PrefixResult {
     pub end_state: usize,
 }
 
+/// Encapsulates the `Prefix` and the input string, and allows iteration over all matches.
 pub trait PrefixSearcher {
+    /// Moves the "cursor" to the given position in the input.
     fn skip_to(&mut self, pos: usize);
+    /// From the current position in the input, finds the next substring matching the `Prefix`
+    /// and advances the "cursor" past that point.
     fn search(&mut self) -> Option<PrefixResult>;
 }
 
 impl Prefix {
+    /// Converts a set of `(string, state)` pairs into a `Prefix` that matches any of the strings.
+    ///
+    /// The `state` part of each `(string, state)` pair is the DFA state that we would be in after
+    /// matching the `string`.
     pub fn from_strings<P: AsRef<[u8]>, I: Iterator<Item=(P, usize)>>(it: I) -> Prefix {
         let strings: Vec<(Vec<u8>, usize)> = it
             .filter(|x| !x.0.as_ref().is_empty())
@@ -60,6 +99,7 @@ impl Prefix {
         }
     }
 
+    /// Takes an input string and prepares for quickly finding matches in it.
     pub fn make_searcher<'a>(&'a self, input: &'a [u8]) -> Box<PrefixSearcher + 'a> {
         use prefix::Prefix::*;
 
