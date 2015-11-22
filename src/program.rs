@@ -62,9 +62,9 @@ pub trait Instructions: Clone + Debug {
 
 #[derive(Clone, Debug)]
 pub struct Program<Insts: Instructions> {
-    pub init: InitStates,
     pub accept_at_eoi: Vec<usize>,
     pub instructions: Insts,
+    pub is_anchored: bool,
 }
 
 impl<Insts: Instructions> Instructions for Program<Insts> {
@@ -86,23 +86,6 @@ impl<Insts: Instructions> Program<Insts> {
         } else {
             None
         }
-    }
-
-    /// If this program matches an empty match at the end of the input, return it.
-    pub fn check_empty_match_at_end(&self, input: &[u8]) -> Option<(usize, usize)> {
-        let pos = input.len();
-        if let Some(state) = self.init.state_at_pos(input, pos) {
-            if self.accept_at_eoi[state] != usize::MAX {
-                return Some((pos, pos));
-            }
-        }
-        None
-    }
-
-
-    /// The initial state when starting the program.
-    pub fn init(&self) -> &InitStates {
-        &self.init
     }
 }
 

@@ -118,7 +118,7 @@ impl<Insts: Instructions> ThreadedEngine<Insts> {
         }
     }
 
-    fn shortest_match_<'a>(&'a self, s: &[u8], skip: &mut PrefixSearcher)
+    fn shortest_match_from_searcher<'a>(&'a self, s: &[u8], skip: &mut PrefixSearcher)
     -> Option<(usize, usize)> {
         let mut acc: Option<(usize, usize)> = None;
         let mut pos = match skip.search() {
@@ -178,13 +178,7 @@ impl<I: Instructions + 'static> Engine for ThreadedEngine<I> {
 
         let s = s.as_bytes();
         let mut searcher = self.prefix.make_searcher(s);
-        let ret = self.shortest_match_(s, &mut *searcher);
-
-        if ret.is_none() {
-            self.prog.check_empty_match_at_end(s)
-        } else {
-            ret
-        }
+        self.shortest_match_from_searcher(s, &mut *searcher)
     }
 
     fn clone_box(&self) -> Box<Engine> {

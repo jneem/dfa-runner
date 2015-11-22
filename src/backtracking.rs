@@ -47,7 +47,6 @@ impl<Insts: Instructions> BacktrackingEngine<Insts> {
         }
     }
 
-    /// `positions` iterates over `(prefix_start, prog_start, state)`
     fn shortest_match_from_searcher(&self, input: &[u8], search: &mut PrefixSearcher)
     -> Option<(usize, usize)> {
         while let Some(res) = search.search() {
@@ -56,7 +55,7 @@ impl<Insts: Instructions> BacktrackingEngine<Insts> {
             }
         }
 
-        self.prog.check_empty_match_at_end(input)
+        None
     }
 }
 
@@ -65,8 +64,8 @@ impl<I: Instructions + 'static> Engine for BacktrackingEngine<I> {
         let input = s.as_bytes();
         if self.prog.num_states() == 0 {
             return None;
-        } else if let Some(state) = self.prog.init().anchored() {
-            return self.shortest_match_from(input, 0, state).map(|x| (0, x));
+        } else if self.prog.is_anchored {
+            return self.shortest_match_from(input, 0, 0).map(|x| (0, x));
         }
 
         let mut searcher = self.prefix.make_searcher(input);
